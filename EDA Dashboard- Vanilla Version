@@ -1,0 +1,104 @@
+# eda_segmentation_dashboard.py
+
+import streamlit as st
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+import plotly.express as px
+
+st.set_page_config(page_title="FMCG Dataset EDA Dashboard", layout="wide", page_icon="📊")
+
+st.title("🛒 FMCG Customer Segmentation Data – EDA Dashboard")
+st.markdown("""
+This dashboard loads data directly from the provided URL and offers interactive exploratory data analysis.
+""")
+
+@st.cache_data
+def load_data():
+    url = "https://raw.githubusercontent.com/SooyeonWon/customer_analytics_fmcg/refs/heads/main/segmentation%20data.csv"
+    df = pd.read_csv(url)
+    return df
+
+df = load_data()
+
+st.subheader("Raw Data Snapshot")
+st.dataframe(df.head())
+
+st.markdown("###  Summary Statistics")
+with st.expander("Show descriptive statistics"):
+    st.write(df.describe(include='all'))
+
+st.markdown("###  Column Types")
+with st.expander("View column data types"):
+    st.write(df.dtypes)
+
+# Missing values
+st.markdown("###  Missing Values")
+missing = df.isnull().sum()
+missing = missing[missing > 0]
+if not missing.empty:
+    fig, ax = plt.subplots()
+    missing.plot(kind='bar', color='tomato', ax=ax)
+    plt.ylabel("Missing Count")
+    plt.title("Missing Values by Column")
+    st.pyplot(fig)
+else:
+    st.info("No missing values detected.")
+
+# Correlation Heatmap
+st.markdown("###  Correlation Heatmap")
+numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
+if len(numeric_cols) >= 2:
+    corr = df[numeric_cols].corr()
+    fig, ax = plt.subplots(figsize=(10, 6))
+    sns.heatmap(corr, annot=True, cmap='coolwarm', fmt=".2f", ax=ax)
+    st.pyplot(fig)
+else:
+    st.warning("Not enough numeric columns for a correlation heatmap.")
+
+# Interactive Visualization Section
+st.markdown("###  Interactive Visualizations")
+plot_type = st.selectbox("Choose a plot type", ["Histogram", "Box Plot", "Scatter Plot"])
+
+if plot_type == "Histogram" and numeric_cols:
+    col = st.selectbox("Select numeric column", numeric_cols, key="hist")
+    fig = px.histogram(df, x=col, nbins=30, title=f"Histogram of {col}", color_discrete_sequence=['#636EFA'])
+    st.plotly_chart(fig, use_container_width=True)
+
+elif plot_type == "Box Plot" and numeric_cols:
+    col = st.selectbox("Select numeric column", numeric_cols, key="box")
+    fig = px.box(df, y=col, title=f"Box Plot of {col}", color_discrete_sequence=['#EF553B'])
+    st.plotly_chart(fig, use_container_width=True)
+
+elif plot_type == "Scatter Plot" and numeric_cols:
+    x_col = st.selectbox("Select X-axis", numeric_cols, key="scatter_x")
+    y_col = st.selectbox("Select Y-axis", numeric_cols, key="scatter_y")
+    color_col = st.selectbox("Optional Color Grouping", [None] + df.columns.tolist(), key="scatter_color")
+    fig = px.scatter(df, x=x_col, y=y_col, color=color_col,
+                     title=f"{y_col} vs {x_col}", template="plotly")
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("Please select valid numeric columns for plotting.")
+
+# Categorical Distribution
+st.markdown("###  Categorical Column Value Counts")
+cat_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
+if cat_cols:
+    sel_cat = st.selectbox("Pick a categorical column", cat_cols)
+    counts = df[sel_cat].value_counts().reset_index()
+    counts.columns = [sel_cat, 'Count']
+    fig = px.bar(counts, x=sel_cat, y='Count', color=sel_cat,
+                 title=f"Distribution of {sel_cat}", template="plotly")
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("No categorical columns available.")
+
+# Download processed data
+st.sidebar.markdown("###  Download Data")
+st.sidebar.download_button(
+    label="Download Processed CSV",
+    data=df.to_csv(index=False),
+    file_name="fmcg_segmentation_data.csv",
+    mime="text/csv"
+)
